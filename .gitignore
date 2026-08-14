@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# prisma sqlite db (resolved relative to project root at runtime) + uploaded assessment photos
+/dev.db
+/dev.db-journal
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# local AI-assistant tool caches, not part of the app
+/.agents
+/.claude
+/.windsurf
+skills-lock.json

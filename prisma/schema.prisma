@@ -1,0 +1,321 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  ADMIN
+  REP
+}
+
+enum LeadStage {
+  NEW
+  QUALIFIED
+  ASSESSMENT_BOOKED
+  ASSESSED
+  QUOTED
+  ACCEPTED
+  DEPOSIT_PAID
+  INSTALLING
+  INSTALLED
+  LOST
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+}
+
+enum StepKey {
+  LEAD_RECEIVED
+  ASSESSMENT
+  QUOTATION
+  ACCEPTANCE
+  DEPOSIT
+  DELIVERY
+  INSTALLATION
+  COC
+  MAINTENANCE_SETUP
+  AFTER_SALES
+  REFERRALS
+}
+
+enum WorkflowStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum StepStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(REP)
+  createdAt    DateTime @default(now())
+  leads        Lead[]   @relation("AssignedRep")
+
+  assignedWorkflows WorkflowInstance[]     @relation("WorkflowAssignee")
+  completedSteps    WorkflowStepInstance[]
+  installations     Installation[]         @relation("InstallationInstaller")
+  workflowEvents    WorkflowEvent[]
+}
+
+model Lead {
+  id               String    @id @default(cuid())
+  name             String
+  phone            String
+  suburb           String
+  area             String?
+  monthlyBill      Int?
+  propertyType     String?
+  hasExistingSolar Boolean   @default(false)
+  objective        String?
+  source           String?
+  stage            LeadStage @default(NEW)
+  assignedRepId    String?
+  assignedRep      User?     @relation("AssignedRep", fields: [assignedRepId], references: [id])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  assessment   Assessment?
+  quotes       Quote[]
+  workflow     WorkflowInstance?
+  referredFrom Referral?
+}
+
+model Assessment {
+  id                     String    @id @default(cuid())
+  leadId                 String    @unique
+  lead                   Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  scheduledFor           DateTime?
+  eskomSupply            String?
+  dbBoard                String?
+  roofType               String?
+  roofOrientation        String?
+  availablePanelSpace    String?
+  existingElectrical     String?
+  essentialLoads         String?
+  backupRequirements     String?
+  recommendedInverterKva Float?
+  recommendedBatteryKwh  Float?
+  recommendedPanelKw     Float?
+  futureExpansion        String?
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  images Image[]
+}
+
+model Image {
+  id           String     @id @default(cuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  url          String
+  caption      String?
+  createdAt    DateTime   @default(now())
+}
+
+model Quote {
+  id          String      @id @default(cuid())
+  leadId      String
+  lead        Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  shareToken  String      @unique @default(cuid())
+  status      QuoteStatus @default(DRAFT)
+  createdAt   DateTime    @default(now())
+  sentAt      DateTime?
+  respondedAt DateTime?
+
+  tiers QuoteTier[]
+}
+
+model QuoteTier {
+  id                      String  @id @default(cuid())
+  quoteId                 String
+  quote                   Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  name                    String
+  tagline                 String?
+  panelKw                 Float
+  inverterKva             Float
+  batteryKwh              Float
+  estMonthlyProductionKwh Float?
+  backupDescription       String?
+  price                   Int
+  warrantyYears           Int?
+  isRecommended           Boolean @default(false)
+  sortOrder               Int     @default(0)
+}
+
+model WorkflowInstance {
+  id           String         @id @default(cuid())
+  leadId       String         @unique
+  lead         Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  privyrId     String?
+  currentStep  StepKey        @default(LEAD_RECEIVED)
+  status       WorkflowStatus @default(ACTIVE)
+  assignedToId String?
+  assignedTo   User?          @relation("WorkflowAssignee", fields: [assignedToId], references: [id])
+  metadata     Json?
+  startedAt    DateTime       @default(now())
+  completedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  steps        WorkflowStepInstance[]
+  documents    WorkflowDocument[]
+  payments     Payment[]
+  delivery     Delivery?
+  installation Installation?
+  coc          Coc?
+  maintenance  MaintenanceRecord[]
+  afterSales   AfterSalesTicket[]
+  referrals    Referral[]
+  events       WorkflowEvent[]
+}
+
+model WorkflowEvent {
+  id         String           @id @default(cuid())
+  workflowId String
+  workflow   WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  type       String
+  stepKey    StepKey?
+  message    String
+  comment    String?
+  actorId    String?
+  actor      User?            @relation(fields: [actorId], references: [id])
+  createdAt  DateTime         @default(now())
+}
+
+model WorkflowStepInstance {
+  id            String           @id @default(cuid())
+  workflowId    String
+  workflow      WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepKey       StepKey
+  status        StepStatus       @default(PENDING)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  completedById String?
+  completedBy   User?            @relation(fields: [completedById], references: [id])
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([workflowId, stepKey])
+}
+
+model WorkflowDocument {
+  id         String           @id @default(cuid())
+  workflowId String
+  workflow   WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepKey    StepKey?
+  url        String
+  caption    String?
+  createdAt  DateTime         @default(now())
+}
+
+model Payment {
+  id         String           @id @default(cuid())
+  workflowId String
+  workflow   WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  type       String
+  amount     Int
+  reference  String?
+  paidAt     DateTime?
+  createdAt  DateTime         @default(now())
+}
+
+model Delivery {
+  id           String           @id @default(cuid())
+  workflowId   String           @unique
+  workflow     WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  scheduledFor DateTime?
+  deliveredAt  DateTime?
+  items        String?
+  notes        String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model Installation {
+  id            String           @id @default(cuid())
+  workflowId    String           @unique
+  workflow      WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  scheduledFor  DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  installedById String?
+  installedBy   User?            @relation("InstallationInstaller", fields: [installedById], references: [id])
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model Coc {
+  id            String           @id @default(cuid())
+  workflowId    String           @unique
+  workflow      WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  certificateNo String?
+  issuedAt      DateTime?
+  issuedBy      String?
+  documentUrl   String?
+  createdAt     DateTime         @default(now())
+}
+
+model MaintenanceRecord {
+  id           String           @id @default(cuid())
+  workflowId   String
+  workflow     WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  planType     String?
+  scheduledFor DateTime?
+  performedAt  DateTime?
+  notes        String?
+  createdAt    DateTime         @default(now())
+}
+
+model AfterSalesTicket {
+  id         String           @id @default(cuid())
+  workflowId String
+  workflow   WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  subject    String
+  status     String           @default("OPEN")
+  raisedAt   DateTime         @default(now())
+  resolvedAt DateTime?
+  notes      String?
+}
+
+model Referral {
+  id             String           @id @default(cuid())
+  workflowId     String
+  workflow       WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  referredLeadId String?          @unique
+  referredLead   Lead?            @relation(fields: [referredLeadId], references: [id])
+  contactName    String
+  contactPhone   String?
+  notes          String?
+  createdAt      DateTime         @default(now())
+}
+
+model CategoryContact {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  email     String?
+  updatedAt DateTime @updatedAt
+}
