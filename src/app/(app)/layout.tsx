@@ -66,6 +66,12 @@ export default async function AppLayout({
             >
               {dict.nav.workflows}
             </Link>
+            <Link
+              href="/calendar"
+              className="text-ink-soft transition hover:text-foreground"
+            >
+              {dict.nav.calendar}
+            </Link>
             {session?.user?.role === "ADMIN" && (
               <Link
                 href="/settings"

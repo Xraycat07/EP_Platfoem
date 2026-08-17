@@ -247,8 +247,15 @@ function initialSteps() {
 export async function createWorkflow(data: {
   name: string;
   phone: string;
+  email?: string;
+  idNumber?: string;
+  altContactName?: string;
+  altContactPhone?: string;
   suburb: string;
   area?: string;
+  streetAddress?: string;
+  postalCode?: string;
+  province?: string;
   monthlyBill?: number;
   propertyType?: string;
   hasExistingSolar: boolean;

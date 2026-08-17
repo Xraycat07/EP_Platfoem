@@ -3,6 +3,26 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/require-user";
 import { completeStepAsSystem } from "@/lib/workflow/engine";
 
+export async function updateLeadDetails(
+  leadId: string,
+  data: {
+    name?: string;
+    phone?: string;
+    email?: string | null;
+    idNumber?: string | null;
+    altContactName?: string | null;
+    altContactPhone?: string | null;
+    suburb?: string;
+    area?: string | null;
+    streetAddress?: string | null;
+    postalCode?: string | null;
+    province?: string | null;
+  }
+) {
+  await requireUser();
+  return prisma.lead.update({ where: { id: leadId }, data });
+}
+
 export async function upsertAssessment(
   leadId: string,
   data: {

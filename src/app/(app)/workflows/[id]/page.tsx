@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { groupKeyForStep } from "@/lib/workflow/definition";
 import type { WorkflowStatus } from "@/lib/workflow/types";
 import { WorkflowActions } from "./workflow-actions";
+import { LeadDetailsForm } from "./lead-details-form";
 import { WorkflowDetailBody } from "./workflow-detail-body";
 import { AssessmentForm } from "./assessment-form";
 import { ImageUploader } from "./image-uploader";
@@ -149,7 +150,11 @@ export default async function WorkflowDetailPage(props: PageProps<"/workflows/[i
                   <Row label={t.currentStep} value={dict.stepLabels[workflow.currentStep]} />
                 </dl>
 
-                <div>
+                <div className="border-t border-line pt-4">
+                  <LeadDetailsForm lead={workflow.lead} workflowId={workflow.id} dict={t} />
+                </div>
+
+                <div className="border-t border-line pt-4">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-soft">{t.documents}</h3>
                   <div className="mt-2">
                     <DocumentGallery

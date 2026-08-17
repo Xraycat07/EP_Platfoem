@@ -12,6 +12,7 @@ import {
   deleteAssessmentImage,
   createQuote,
   respondToQuote,
+  updateLeadDetails,
 } from "@/lib/leads";
 import * as engine from "@/lib/workflow/engine";
 import type { StepKey } from "@/lib/workflow/types";
@@ -45,8 +46,15 @@ const notesField = z.string().trim().min(1, { error: "Notes are required to adva
 const leadSchema = z.object({
   name: z.string().trim().min(2, { error: "Enter the client's name." }),
   phone: z.string().trim().min(6, { error: "Enter a contact number." }),
+  email: z.string().trim().email({ error: "Enter a valid email address." }).optional(),
+  idNumber: z.string().trim().optional(),
+  altContactName: z.string().trim().optional(),
+  altContactPhone: z.string().trim().optional(),
   suburb: z.string().trim().min(2, { error: "Enter the suburb." }),
   area: z.string().trim().optional(),
+  streetAddress: z.string().trim().optional(),
+  postalCode: z.string().trim().optional(),
+  province: z.string().trim().optional(),
   monthlyBill: z.coerce.number().int().nonnegative().optional(),
   propertyType: z.string().trim().optional(),
   hasExistingSolar: z.coerce.boolean().optional(),
@@ -62,8 +70,15 @@ export async function createWorkflowAction(
   const parsed = leadSchema.safeParse({
     name: formData.get("name"),
     phone: formData.get("phone"),
+    email: formData.get("email") || undefined,
+    idNumber: formData.get("idNumber") || undefined,
+    altContactName: formData.get("altContactName") || undefined,
+    altContactPhone: formData.get("altContactPhone") || undefined,
     suburb: formData.get("suburb"),
     area: formData.get("area") || undefined,
+    streetAddress: formData.get("streetAddress") || undefined,
+    postalCode: formData.get("postalCode") || undefined,
+    province: formData.get("province") || undefined,
     monthlyBill: formData.get("monthlyBill") || undefined,
     propertyType: formData.get("propertyType") || undefined,
     hasExistingSolar: formData.get("hasExistingSolar") === "on",
@@ -84,6 +99,54 @@ export async function createWorkflowAction(
   revalidatePath("/workflows");
   revalidatePath("/dashboard");
   redirect(`/workflows/${workflow.id}`);
+}
+
+// ---------- Edit lead details ----------
+
+const leadDetailsSchema = z.object({
+  name: z.string().trim().min(2, { error: "Enter the client's name." }),
+  phone: z.string().trim().min(6, { error: "Enter a contact number." }),
+  email: z.string().trim().email({ error: "Enter a valid email address." }).optional().or(z.literal("")),
+  idNumber: z.string().trim().optional(),
+  altContactName: z.string().trim().optional(),
+  altContactPhone: z.string().trim().optional(),
+  suburb: z.string().trim().min(2, { error: "Enter the suburb." }),
+  area: z.string().trim().optional(),
+  streetAddress: z.string().trim().optional(),
+  postalCode: z.string().trim().optional(),
+  province: z.string().trim().optional(),
+});
+
+export type LeadDetailsState = { error?: string; success?: boolean } | undefined;
+
+export async function updateLeadDetailsAction(
+  leadId: string,
+  workflowId: string,
+  _prevState: LeadDetailsState,
+  formData: FormData
+): Promise<LeadDetailsState> {
+  await requireUser();
+  const parsed = leadDetailsSchema.safeParse({
+    name: formData.get("name"),
+    phone: formData.get("phone"),
+    email: formData.get("email") || undefined,
+    idNumber: formData.get("idNumber") || undefined,
+    altContactName: formData.get("altContactName") || undefined,
+    altContactPhone: formData.get("altContactPhone") || undefined,
+    suburb: formData.get("suburb"),
+    area: formData.get("area") || undefined,
+    streetAddress: formData.get("streetAddress") || undefined,
+    postalCode: formData.get("postalCode") || undefined,
+    province: formData.get("province") || undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Check the client details." };
+  }
+
+  const { email, ...rest } = parsed.data;
+  await updateLeadDetails(leadId, { ...rest, email: email || null });
+  revalidateWorkflow(workflowId);
+  return { success: true };
 }
 
 // ---------- Transition actions ----------

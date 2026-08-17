@@ -7,6 +7,18 @@ const inputClass =
   "rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-teal focus:ring-2 focus:ring-teal/20";
 const labelClass = "text-sm font-medium text-foreground";
 
+const PROVINCES = [
+  "Eastern Cape",
+  "Free State",
+  "Gauteng",
+  "KwaZulu-Natal",
+  "Limpopo",
+  "Mpumalanga",
+  "North West",
+  "Northern Cape",
+  "Western Cape",
+];
+
 export function NewWorkflowForm() {
   const [state, formAction, pending] = useActionState(createWorkflowAction, undefined);
 
@@ -15,6 +27,14 @@ export function NewWorkflowForm() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Full name" name="name" required className={inputClass} />
         <Field label="Cellphone" name="phone" required className={inputClass} />
+        <Field label="Email" name="email" type="email" className={inputClass} />
+        <Field label="ID / passport number" name="idNumber" className={inputClass} />
+        <Field label="Alternate contact name" name="altContactName" className={inputClass} />
+        <Field label="Alternate contact phone" name="altContactPhone" className={inputClass} />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Street address" name="streetAddress" className={inputClass} />
         <Field label="Suburb" name="suburb" required className={inputClass} />
         <div className="flex flex-col gap-1.5">
           <label htmlFor="area" className={labelClass}>
@@ -29,6 +49,23 @@ export function NewWorkflowForm() {
             <option value="Other">Other</option>
           </select>
         </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="province" className={labelClass}>
+            Province
+          </label>
+          <select id="province" name="province" className={inputClass} defaultValue="">
+            <option value="">Select province…</option>
+            {PROVINCES.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Field label="Postal code" name="postalCode" className={inputClass} />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field
           label="Monthly electricity bill (R)"
           name="monthlyBill"

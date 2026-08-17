@@ -69,6 +69,7 @@ model User {
   email        String   @unique
   passwordHash String
   role         Role     @default(REP)
+  feedToken    String?  @unique
   createdAt    DateTime @default(now())
   leads        Lead[]   @relation("AssignedRep")
 
@@ -83,8 +84,15 @@ model Lead {
   id               String    @id @default(cuid())
   name             String
   phone            String
+  email            String?
+  idNumber         String?
+  altContactName   String?
+  altContactPhone  String?
   suburb           String
   area             String?
+  streetAddress    String?
+  postalCode       String?
+  province         String?
   monthlyBill      Int?
   propertyType     String?
   hasExistingSolar Boolean   @default(false)
