@@ -82,7 +82,7 @@ export async function getQuoteByToken(token: string) {
   });
 }
 
-export async function respondToQuote(token: string, status: "ACCEPTED" | "DECLINED") {
+export async function respondToQuote(token: string, status: "ACCEPTED" | "DECLINED", notes?: string) {
   const quote = await prisma.quote.update({
     where: { shareToken: token },
     data: { status, respondedAt: new Date() },
@@ -90,7 +90,7 @@ export async function respondToQuote(token: string, status: "ACCEPTED" | "DECLIN
   });
   const workflow = quote.lead.workflow;
   if (status === "ACCEPTED" && workflow?.currentStep === "ACCEPTANCE") {
-    await completeStepAsSystem(workflow.id, "ACCEPTANCE");
+    await completeStepAsSystem(workflow.id, "ACCEPTANCE", notes);
   }
   return quote;
 }

@@ -91,9 +91,16 @@ export function InstallationForm({
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="notes" className={labelClass}>
-          Notes
+          Notes (required)
         </label>
-        <textarea id="notes" name="notes" rows={2} defaultValue={installation?.notes ?? ""} className={inputClass} />
+        <textarea
+          id="notes"
+          name="notes"
+          rows={2}
+          defaultValue={installation?.notes ?? ""}
+          required
+          className={inputClass}
+        />
       </div>
 
       {state?.error && (

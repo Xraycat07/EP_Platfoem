@@ -67,10 +67,26 @@ export async function getWorkflow(id: string) {
   return fetchWorkflowData(id);
 }
 
-export async function listWorkflows(status?: "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED") {
+export async function listWorkflows(filter?: {
+  status?: "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
+  statusIn?: readonly ("ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED")[];
+  currentStep?: StepKey;
+  currentStepIn?: readonly StepKey[];
+}) {
   await requireUser();
   return prisma.workflowInstance.findMany({
-    where: status ? { status } : undefined,
+    where: {
+      ...(filter?.status
+        ? { status: filter.status }
+        : filter?.statusIn
+          ? { status: { in: [...filter.statusIn] } }
+          : {}),
+      ...(filter?.currentStep
+        ? { currentStep: filter.currentStep }
+        : filter?.currentStepIn
+          ? { currentStep: { in: [...filter.currentStepIn] } }
+          : {}),
+    },
     orderBy: { updatedAt: "desc" },
     include: {
       lead: { select: { id: true, name: true, phone: true, suburb: true, area: true } },
@@ -318,8 +334,12 @@ async function notifyCategoryEmail(workflowId: string, next: StepKey) {
   const group = STEP_GROUPS.find((g) => g.steps.includes(next));
   if (!group) return;
 
-  const contact = await prisma.categoryContact.findUnique({ where: { key: group.key } });
-  if (!contact?.email) return;
+  const contact = await prisma.categoryContact.findUnique({
+    where: { key: group.key },
+    include: { recipients: { include: { user: { select: { email: true } } } } },
+  });
+  const recipientEmails = contact?.recipients.map((r) => r.user.email) ?? [];
+  if (recipientEmails.length === 0) return;
 
   const data = await fetchWorkflowData(workflowId);
   if (!data) return;
@@ -354,7 +374,7 @@ async function notifyCategoryEmail(workflowId: string, next: StepKey) {
   ];
 
   await sendEmail({
-    to: contact.email,
+    to: recipientEmails.join(", "),
     subject: `${lead.name} moved into ${group.label}`,
     text: [
       `${lead.name} (${lead.suburb}${lead.area ? `, ${lead.area}` : ""}) has entered the ${group.label} stage.`,
@@ -380,8 +400,8 @@ export async function completeStep(workflowId: string, stepKey: StepKey, notes?:
 
 // Used only by the public (unauthenticated) quote-response page when a customer
 // accepts a quote directly, advancing the ACCEPTANCE step without a rep session.
-export async function completeStepAsSystem(workflowId: string, stepKey: StepKey) {
-  await applyCompleteStep(workflowId, stepKey, undefined, null);
+export async function completeStepAsSystem(workflowId: string, stepKey: StepKey, notes?: string) {
+  await applyCompleteStep(workflowId, stepKey, notes, null);
 }
 
 export async function returnToStep(workflowId: string, stepKey: StepKey, comment?: string) {
@@ -446,20 +466,6 @@ export async function cancelWorkflow(workflowId: string, reason?: string) {
   await logEvent({ workflowId, type: "CANCEL", message: "Workflow cancelled", comment: reason, actorId: user.id });
 }
 
-export async function getStepCounts() {
-  await requireUser();
-  const rows = await prisma.workflowInstance.groupBy({
-    by: ["currentStep"],
-    where: { status: { in: ["ACTIVE", "ON_HOLD"] } },
-    _count: { _all: true },
-  });
-  const counts = Object.fromEntries(STEP_KEYS.map((s) => [s, 0])) as Record<StepKey, number>;
-  for (const row of rows) {
-    counts[row.currentStep as StepKey] = row._count._all;
-  }
-  return counts;
-}
-
 export async function getStatusCounts() {
   await requireUser();
   const rows = await prisma.workflowInstance.groupBy({
@@ -473,26 +479,38 @@ export async function getStatusCounts() {
   return counts;
 }
 
-// % of this category's steps completed across every non-cancelled workflow —
-// e.g. 2 workflows × 4 steps in "Sales" = 8 slots; 3 completed = 38%.
-export async function getCategoryCompletion() {
+// A workflow sits at exactly one step at a time, so `positions[step]` is how
+// many active/on-hold clients are currently at that step — i.e. where each
+// client actually is right now.
+//
+// `categories[group]` is scoped to that same idea: only clients whose
+// currentStep falls inside this category count toward it. A client who has
+// already moved on to a later category no longer counts here — with
+// multiple clients spread across different categories, each category should
+// only reflect the people actually working through it right now.
+export async function getPipelineCompletion() {
   await requireUser();
-  const totalWorkflows = await prisma.workflowInstance.count({ where: { status: { not: "CANCELLED" } } });
+  const positions = Object.fromEntries(STEP_KEYS.map((s) => [s, 0])) as Record<StepKey, number>;
+  const categories = Object.fromEntries(STEP_GROUPS.map((g) => [g.key, 0])) as Record<string, number>;
 
-  const result = Object.fromEntries(STEP_GROUPS.map((g) => [g.key, 0])) as Record<string, number>;
-  if (totalWorkflows === 0) return result;
-
-  const completed = await prisma.workflowStepInstance.groupBy({
-    by: ["stepKey"],
-    where: { status: "COMPLETED", workflow: { status: { not: "CANCELLED" } } },
-    _count: { _all: true },
+  const workflows = await prisma.workflowInstance.findMany({
+    where: { status: { in: ["ACTIVE", "ON_HOLD"] } },
+    select: { currentStep: true, steps: { select: { stepKey: true, status: true } } },
   });
-  const completedByStep = Object.fromEntries(completed.map((c) => [c.stepKey, c._count._all]));
+
+  for (const w of workflows) {
+    positions[w.currentStep as StepKey] += 1;
+  }
 
   for (const group of STEP_GROUPS) {
-    const totalSlots = group.steps.length * totalWorkflows;
-    const completedSlots = group.steps.reduce((sum, s) => sum + (completedByStep[s] ?? 0), 0);
-    result[group.key] = totalSlots > 0 ? Math.round((completedSlots / totalSlots) * 100) : 0;
+    const inCategory = workflows.filter((w) => (group.steps as StepKey[]).includes(w.currentStep as StepKey));
+    if (inCategory.length === 0) continue;
+
+    const completedSlots = inCategory.reduce((sum, w) => {
+      const completedSteps = new Set(w.steps.filter((s) => s.status === "COMPLETED").map((s) => s.stepKey));
+      return sum + group.steps.filter((s) => completedSteps.has(s)).length;
+    }, 0);
+    categories[group.key] = Math.round((completedSlots / (inCategory.length * group.steps.length)) * 100);
   }
-  return result;
+  return { positions, categories };
 }

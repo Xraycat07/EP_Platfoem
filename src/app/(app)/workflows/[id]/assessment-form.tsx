@@ -108,7 +108,7 @@ export function AssessmentForm({
         name="futureExpansion"
         defaultValue={assessment?.futureExpansion ?? ""}
       />
-      <Field label="Notes" name="notes" defaultValue={assessment?.notes ?? ""} textarea />
+      <Field label="Notes (required)" name="notes" defaultValue={assessment?.notes ?? ""} textarea required />
 
       {state?.error && (
         <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{state.error}</p>
@@ -134,6 +134,7 @@ function Field({
   step,
   defaultValue,
   textarea,
+  required,
 }: {
   label: string;
   name: string;
@@ -141,6 +142,7 @@ function Field({
   step?: string;
   defaultValue?: string | number;
   textarea?: boolean;
+  required?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -153,6 +155,7 @@ function Field({
           name={name}
           rows={2}
           defaultValue={defaultValue}
+          required={required}
           className={inputClass}
         />
       ) : (
@@ -162,6 +165,7 @@ function Field({
           type={type}
           step={step}
           defaultValue={defaultValue}
+          required={required}
           className={inputClass}
         />
       )}

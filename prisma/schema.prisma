@@ -76,6 +76,7 @@ model User {
   completedSteps    WorkflowStepInstance[]
   installations     Installation[]         @relation("InstallationInstaller")
   workflowEvents    WorkflowEvent[]
+  categoryContacts  CategoryContactRecipient[]
 }
 
 model Lead {
@@ -314,8 +315,19 @@ model Referral {
 }
 
 model CategoryContact {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  email     String?
-  updatedAt DateTime @updatedAt
+  id         String                     @id @default(cuid())
+  key        String                     @unique
+  recipients CategoryContactRecipient[]
+  updatedAt  DateTime                   @updatedAt
+}
+
+model CategoryContactRecipient {
+  id                String          @id @default(cuid())
+  categoryContactId String
+  categoryContact   CategoryContact @relation(fields: [categoryContactId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+
+  @@unique([categoryContactId, userId])
 }

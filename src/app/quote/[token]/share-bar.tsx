@@ -1,24 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export function ShareBar({ token, clientName }: { token: string; clientName: string }) {
   const [copied, setCopied] = useState(false);
-  const [shareUrl, setShareUrl] = useState(`/quote/${token}`);
-
-  useEffect(() => {
-    setShareUrl(`${window.location.origin}/quote/${token}`);
-  }, [token]);
+  const relativeUrl = `/quote/${token}`;
 
   async function copyLink() {
-    await navigator.clipboard.writeText(shareUrl);
+    await navigator.clipboard.writeText(`${window.location.origin}${relativeUrl}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   }
 
-  const shareText = encodeURIComponent(
-    `Hi, sharing my EP solar proposal (${clientName}): ${shareUrl}`
-  );
+  function shareViaWhatsApp() {
+    const text = encodeURIComponent(
+      `Hi, sharing my ELP solar proposal (${clientName}): ${window.location.origin}${relativeUrl}`
+    );
+    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -29,14 +28,13 @@ export function ShareBar({ token, clientName }: { token: string; clientName: str
       >
         {copied ? "Link copied!" : "Copy link"}
       </button>
-      <a
-        href={`https://wa.me/?text=${shareText}`}
-        target="_blank"
-        rel="noreferrer"
+      <button
+        type="button"
+        onClick={shareViaWhatsApp}
         className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-teal hover:text-teal"
       >
         Share on WhatsApp
-      </a>
+      </button>
     </div>
   );
 }

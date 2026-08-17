@@ -47,6 +47,13 @@ export function CocForm({ workflowId, coc }: { workflowId: string; coc: Coc }) {
         </div>
       </div>
 
+      <div className="flex flex-col gap-1">
+        <label htmlFor="notes" className={labelClass}>
+          Notes (required)
+        </label>
+        <textarea id="notes" name="notes" rows={2} required className={inputClass} />
+      </div>
+
       {state?.error && (
         <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{state.error}</p>
       )}

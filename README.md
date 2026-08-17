@@ -1,4 +1,4 @@
-# EP Platform
+# ELP Platform
 
 Lead-to-referral pipeline for Energy Life Performance: capture a solar enquiry, record the
 on-site assessment with photos, send a 3-tier quotation, and let the client accept it from a

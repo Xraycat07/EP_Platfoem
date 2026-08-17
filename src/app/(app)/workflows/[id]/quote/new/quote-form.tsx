@@ -4,15 +4,15 @@ import { useActionState } from "react";
 import { createQuoteAction } from "../../../actions";
 
 const TIERS = [
-  { key: "essential", name: "EP Essential", tagline: "Backup for essential household loads" },
+  { key: "essential", name: "ELP Essential", tagline: "Backup for essential household loads" },
   {
     key: "independence",
-    name: "EP Independence",
+    name: "ELP Independence",
     tagline: "Solar + battery designed to substantially reduce grid dependence",
   },
   {
     key: "premium",
-    name: "EP Premium",
+    name: "ELP Premium",
     tagline: "Larger solar generation and battery capacity with greater backup capability",
   },
 ] as const;
@@ -61,6 +61,20 @@ export function QuoteForm({ workflowId, leadId }: { workflowId: string; leadId: 
           </div>
         </fieldset>
       ))}
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="notes" className={labelClass}>
+          Notes (required)
+        </label>
+        <textarea
+          id="notes"
+          name="notes"
+          rows={2}
+          required
+          placeholder="Context for sending this quote"
+          className={inputClass}
+        />
+      </div>
 
       {state?.error && (
         <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{state.error}</p>

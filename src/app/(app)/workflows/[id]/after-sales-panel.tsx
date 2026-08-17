@@ -57,7 +57,7 @@ export function AfterSalesPanel({ workflowId, tickets }: { workflowId: string; t
           </label>
           <input id="subject" name="subject" placeholder="Subject" required className={inputClass} />
         </div>
-        <textarea name="notes" rows={2} placeholder="Notes" className={inputClass} />
+        <textarea name="notes" rows={2} placeholder="Notes (required)" required className={inputClass} />
         {state?.error && (
           <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{state.error}</p>
         )}

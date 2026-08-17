@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const STATUS_STYLE: Record<string, string> = {
   DRAFT: "bg-surface-muted text-ink-soft",
@@ -23,21 +23,20 @@ export function QuoteCard({
   totalFrom: number;
 }) {
   const [copied, setCopied] = useState(false);
-  const [shareUrl, setShareUrl] = useState(`/quote/${shareToken}`);
-
-  useEffect(() => {
-    setShareUrl(`${window.location.origin}/quote/${shareToken}`);
-  }, [shareToken]);
+  const relativeUrl = `/quote/${shareToken}`;
 
   async function copyLink() {
-    await navigator.clipboard.writeText(shareUrl);
+    await navigator.clipboard.writeText(`${window.location.origin}${relativeUrl}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   }
 
-  const waText = encodeURIComponent(
-    `Hi, here's your EP solar proposal: ${shareUrl}`
-  );
+  function shareViaWhatsApp() {
+    const text = encodeURIComponent(
+      `Hi, here's your ELP solar proposal: ${window.location.origin}${relativeUrl}`
+    );
+    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
+  }
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-line p-4">
@@ -54,7 +53,7 @@ export function QuoteCard({
       </div>
       <div className="flex flex-wrap gap-2">
         <a
-          href={`/quote/${shareToken}`}
+          href={relativeUrl}
           target="_blank"
           rel="noreferrer"
           className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-teal hover:text-teal"
@@ -68,14 +67,13 @@ export function QuoteCard({
         >
           {copied ? "Link copied!" : "Copy share link"}
         </button>
-        <a
-          href={`https://wa.me/?text=${waText}`}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          onClick={shareViaWhatsApp}
           className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-teal hover:text-teal"
         >
           Share via WhatsApp
-        </a>
+        </button>
       </div>
     </div>
   );

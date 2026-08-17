@@ -72,7 +72,7 @@ export default async function PublicQuotePage(props: PageProps<"/quote/[token]">
         <div className="mt-8 rounded-lg border border-line bg-surface p-6">
           {quote.status === "ACCEPTED" ? (
             <p className="text-sm font-medium text-teal">
-              Thanks — you&apos;ve accepted this proposal. Your EP rep will be in touch to arrange the deposit and installation date.
+              Thanks — you&apos;ve accepted this proposal. Your ELP rep will be in touch to arrange the deposit and installation date.
             </p>
           ) : quote.status === "DECLINED" ? (
             <p className="text-sm text-ink-soft">
@@ -81,7 +81,7 @@ export default async function PublicQuotePage(props: PageProps<"/quote/[token]">
           ) : (
             <>
               <p className="mb-4 text-sm text-ink-soft">
-                Choose the option that fits — or reply to your EP rep with any questions before deciding.
+                Choose the option that fits — or reply to your ELP rep with any questions before deciding.
               </p>
               <RespondButtons token={token} />
             </>

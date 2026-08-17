@@ -29,9 +29,9 @@ export function MaintenanceForm({ workflowId }: { workflowId: string }) {
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="notes" className={labelClass}>
-          Notes
+          Notes (required)
         </label>
-        <textarea id="notes" name="notes" rows={2} className={inputClass} />
+        <textarea id="notes" name="notes" rows={2} required className={inputClass} />
       </div>
 
       {state?.error && (

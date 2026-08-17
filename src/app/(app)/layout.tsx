@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { auth, signOut } from "@/lib/auth";
 import { getDictionary } from "@/lib/i18n/get-locale";
+import { getTheme } from "@/lib/theme/get-theme";
 import { LanguageToggle } from "@/components/language-toggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [session, { locale, dict }] = await Promise.all([auth(), getDictionary()]);
+  const [session, { locale, dict }, theme] = await Promise.all([auth(), getDictionary(), getTheme()]);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -17,13 +19,14 @@ export default async function AppLayout({
           <div className="flex items-center justify-between gap-3">
             <Link href="/dashboard" className="flex shrink-0 items-baseline gap-2">
               <span className="text-sm font-mono uppercase tracking-widest text-amber">
-                EP
+                ELP
               </span>
               <span className="text-sm font-semibold text-foreground">
                 Platform
               </span>
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
+              <ThemeToggle theme={theme} />
               <LanguageToggle locale={locale} />
               <Link
                 href="/workflows/new"

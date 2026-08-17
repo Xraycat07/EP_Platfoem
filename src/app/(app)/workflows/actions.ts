@@ -31,12 +31,14 @@ function revalidateWorkflow(workflowId: string) {
   revalidatePath("/dashboard");
 }
 
-async function completeIfCurrent(workflowId: string, stepKey: StepKey) {
+async function completeIfCurrent(workflowId: string, stepKey: StepKey, notes: string) {
   const workflow = await prisma.workflowInstance.findUniqueOrThrow({ where: { id: workflowId } });
   if (workflow.currentStep === stepKey) {
-    await engine.completeStep(workflowId, stepKey);
+    await engine.completeStep(workflowId, stepKey, notes);
   }
 }
+
+const notesField = z.string().trim().min(1, { error: "Notes are required to advance this step." });
 
 // ---------- Create workflow ----------
 
@@ -113,9 +115,10 @@ export async function cancelAction(workflowId: string, reason?: string) {
   revalidateWorkflow(workflowId);
 }
 
-export async function acceptQuoteManualAction(workflowId: string, token: string) {
+export async function acceptQuoteManualAction(workflowId: string, token: string, comment: string) {
+  if (!comment.trim()) throw new Error("Add a comment before marking this quote accepted.");
   await requireUser();
-  await respondToQuote(token, "ACCEPTED");
+  await respondToQuote(token, "ACCEPTED", comment.trim());
   revalidateWorkflow(workflowId);
 }
 
@@ -135,7 +138,7 @@ const assessmentSchema = z.object({
   recommendedBatteryKwh: z.coerce.number().positive().optional(),
   recommendedPanelKw: z.coerce.number().positive().optional(),
   futureExpansion: z.string().trim().optional(),
-  notes: z.string().trim().optional(),
+  notes: notesField,
 });
 
 export async function saveAssessmentAction(
@@ -172,7 +175,7 @@ export async function saveAssessmentAction(
     ...rest,
     scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
   });
-  await completeIfCurrent(workflowId, "ASSESSMENT");
+  await completeIfCurrent(workflowId, "ASSESSMENT", parsed.data.notes);
   revalidateWorkflow(workflowId);
 }
 
@@ -229,6 +232,11 @@ export async function createQuoteAction(
   formData: FormData
 ): Promise<FormState> {
   await requireUser();
+  const notesParsed = notesField.safeParse(formData.get("notes"));
+  if (!notesParsed.success) {
+    return { error: notesParsed.error.issues[0]?.message ?? "Notes are required to send this quote." };
+  }
+
   const tierNames = ["essential", "independence", "premium"] as const;
   const tiers = [];
 
@@ -260,7 +268,7 @@ export async function createQuoteAction(
   if (tiers.length === 0) return { error: "Fill in at least one package tier." };
 
   await createQuote(leadId, tiers);
-  await completeIfCurrent(workflowId, "QUOTATION");
+  await completeIfCurrent(workflowId, "QUOTATION", notesParsed.data);
   revalidateWorkflow(workflowId);
   redirect(`/workflows/${workflowId}`);
 }
@@ -271,6 +279,7 @@ const depositSchema = z.object({
   amount: z.coerce.number().int().positive(),
   reference: z.string().trim().optional(),
   paidAt: z.string().optional(),
+  notes: notesField,
 });
 
 export async function recordDepositAction(
@@ -283,17 +292,18 @@ export async function recordDepositAction(
     amount: formData.get("amount"),
     reference: formData.get("reference") || undefined,
     paidAt: formData.get("paidAt") || undefined,
+    notes: formData.get("notes"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check the deposit fields." };
   }
-  const { paidAt, ...rest } = parsed.data;
+  const { paidAt, notes, ...rest } = parsed.data;
   await recordPayment(workflowId, {
     type: "DEPOSIT",
     ...rest,
     paidAt: paidAt ? new Date(paidAt) : new Date(),
   });
-  await completeIfCurrent(workflowId, "DEPOSIT");
+  await completeIfCurrent(workflowId, "DEPOSIT", notes);
   revalidateWorkflow(workflowId);
 }
 
@@ -303,7 +313,7 @@ const deliverySchema = z.object({
   scheduledFor: z.string().optional(),
   deliveredAt: z.string().optional(),
   items: z.string().trim().optional(),
-  notes: z.string().trim().optional(),
+  notes: notesField,
 });
 
 export async function saveDeliveryAction(
@@ -327,7 +337,7 @@ export async function saveDeliveryAction(
     scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
     deliveredAt: deliveredAt ? new Date(deliveredAt) : null,
   });
-  await completeIfCurrent(workflowId, "DELIVERY");
+  await completeIfCurrent(workflowId, "DELIVERY", parsed.data.notes);
   revalidateWorkflow(workflowId);
 }
 
@@ -338,7 +348,7 @@ const installationSchema = z.object({
   startedAt: z.string().optional(),
   completedAt: z.string().optional(),
   installedById: z.string().trim().optional(),
-  notes: z.string().trim().optional(),
+  notes: notesField,
 });
 
 export async function saveInstallationAction(
@@ -364,7 +374,7 @@ export async function saveInstallationAction(
     startedAt: startedAt ? new Date(startedAt) : null,
     completedAt: completedAt ? new Date(completedAt) : null,
   });
-  await completeIfCurrent(workflowId, "INSTALLATION");
+  await completeIfCurrent(workflowId, "INSTALLATION", parsed.data.notes);
   revalidateWorkflow(workflowId);
 }
 
@@ -374,6 +384,7 @@ const cocSchema = z.object({
   certificateNo: z.string().trim().optional(),
   issuedAt: z.string().optional(),
   issuedBy: z.string().trim().optional(),
+  notes: notesField,
 });
 
 export async function saveCocAction(
@@ -386,13 +397,14 @@ export async function saveCocAction(
     certificateNo: formData.get("certificateNo") || undefined,
     issuedAt: formData.get("issuedAt") || undefined,
     issuedBy: formData.get("issuedBy") || undefined,
+    notes: formData.get("notes"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check the COC fields." };
   }
-  const { issuedAt, ...rest } = parsed.data;
+  const { issuedAt, notes, ...rest } = parsed.data;
   await upsertCoc(workflowId, { ...rest, issuedAt: issuedAt ? new Date(issuedAt) : null });
-  await completeIfCurrent(workflowId, "COC");
+  await completeIfCurrent(workflowId, "COC", notes);
   revalidateWorkflow(workflowId);
 }
 
@@ -402,7 +414,7 @@ const maintenanceSchema = z.object({
   planType: z.string().trim().optional(),
   scheduledFor: z.string().optional(),
   performedAt: z.string().optional(),
-  notes: z.string().trim().optional(),
+  notes: notesField,
 });
 
 export async function logMaintenanceAction(
@@ -426,7 +438,7 @@ export async function logMaintenanceAction(
     scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
     performedAt: performedAt ? new Date(performedAt) : null,
   });
-  await completeIfCurrent(workflowId, "MAINTENANCE_SETUP");
+  await completeIfCurrent(workflowId, "MAINTENANCE_SETUP", parsed.data.notes);
   revalidateWorkflow(workflowId);
 }
 
@@ -434,7 +446,7 @@ export async function logMaintenanceAction(
 
 const ticketSchema = z.object({
   subject: z.string().trim().min(2, { error: "Describe the issue." }),
-  notes: z.string().trim().optional(),
+  notes: notesField,
 });
 
 export async function createTicketAction(
@@ -445,13 +457,13 @@ export async function createTicketAction(
   await requireUser();
   const parsed = ticketSchema.safeParse({
     subject: formData.get("subject"),
-    notes: formData.get("notes") || undefined,
+    notes: formData.get("notes"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check the ticket fields." };
   }
   await createTicket(workflowId, parsed.data);
-  await completeIfCurrent(workflowId, "AFTER_SALES");
+  await completeIfCurrent(workflowId, "AFTER_SALES", parsed.data.notes);
   revalidateWorkflow(workflowId);
 }
 
@@ -466,7 +478,7 @@ export async function resolveTicketAction(ticketId: string, workflowId: string) 
 const referralSchema = z.object({
   contactName: z.string().trim().min(2, { error: "Enter the referral's name." }),
   contactPhone: z.string().trim().optional(),
-  notes: z.string().trim().optional(),
+  notes: notesField,
 });
 
 export async function logReferralAction(
@@ -478,13 +490,13 @@ export async function logReferralAction(
   const parsed = referralSchema.safeParse({
     contactName: formData.get("contactName"),
     contactPhone: formData.get("contactPhone") || undefined,
-    notes: formData.get("notes") || undefined,
+    notes: formData.get("notes"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check the referral fields." };
   }
   await logReferral(workflowId, parsed.data);
-  await completeIfCurrent(workflowId, "REFERRALS");
+  await completeIfCurrent(workflowId, "REFERRALS", parsed.data.notes);
   revalidateWorkflow(workflowId);
 }
 

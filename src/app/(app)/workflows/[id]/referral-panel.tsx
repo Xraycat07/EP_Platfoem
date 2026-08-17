@@ -72,7 +72,7 @@ export function ReferralPanel({ workflowId, referrals }: { workflowId: string; r
             <input id="contactPhone" name="contactPhone" className={inputClass} />
           </div>
         </div>
-        <textarea name="notes" rows={2} placeholder="Notes" className={inputClass} />
+        <textarea name="notes" rows={2} placeholder="Notes (required)" required className={inputClass} />
         {state?.error && (
           <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{state.error}</p>
         )}

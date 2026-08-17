@@ -58,9 +58,16 @@ export function DeliveryForm({ workflowId, delivery }: { workflowId: string; del
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="notes" className={labelClass}>
-          Notes
+          Notes (required)
         </label>
-        <textarea id="notes" name="notes" rows={2} defaultValue={delivery?.notes ?? ""} className={inputClass} />
+        <textarea
+          id="notes"
+          name="notes"
+          rows={2}
+          defaultValue={delivery?.notes ?? ""}
+          required
+          className={inputClass}
+        />
       </div>
 
       {state?.error && (

@@ -1,14 +1,17 @@
 import { LoginForm } from "./login-form";
 import { getDictionary } from "@/lib/i18n/get-locale";
+import { getTheme } from "@/lib/theme/get-theme";
 import { LanguageToggle } from "@/components/language-toggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function LoginPage() {
-  const { locale, dict } = await getDictionary();
+  const [{ locale, dict }, theme] = await Promise.all([getDictionary(), getTheme()]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-4 flex justify-center">
+        <div className="mb-4 flex justify-center gap-2">
+          <ThemeToggle theme={theme} />
           <LanguageToggle locale={locale} />
         </div>
         <div className="mb-8 text-center">
