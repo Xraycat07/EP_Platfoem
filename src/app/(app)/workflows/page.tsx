@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { listWorkflows, getStatusCounts, progressPercent } from "@/lib/workflow/engine";
+import { getCategoryContacts } from "@/lib/category-contacts";
 import { getDictionary } from "@/lib/i18n/get-locale";
+import { auth } from "@/lib/auth";
 import { WORKFLOW_STATUSES, STEP_KEYS, type WorkflowStatus, type StepKey } from "@/lib/workflow/types";
-import { STEP_GROUPS, STEP_ORDER } from "@/lib/workflow/definition";
+import { STEP_GROUPS, STEP_ORDER, groupKeyForStep } from "@/lib/workflow/definition";
 import { AutoRefresh } from "@/components/auto-refresh";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -62,14 +64,52 @@ export default async function WorkflowsPage(props: PageProps<"/workflows">) {
       ? { currentStepIn: category.steps, statusIn: ["ACTIVE", "ON_HOLD"] as const }
       : { status };
 
-  const [fetchedWorkflows, statusCounts, { dict }] = await Promise.all([
-    listWorkflows(pipelineFilter),
-    getStatusCounts(),
-    getDictionary(),
-  ]);
+  const [fetchedWorkflows, globalStatusCounts, { dict }, session, categoryContacts, allWorkflows] =
+    await Promise.all([
+      listWorkflows(pipelineFilter),
+      getStatusCounts(),
+      getDictionary(),
+      auth(),
+      getCategoryContacts(),
+      listWorkflows(),
+    ]);
+
+  // Reps linked to a category as a contact only see clients that are either
+  // assigned to them directly or currently sitting in one of their
+  // categories — everyone else (admins, and reps with no category link)
+  // sees the full list unfiltered.
+  const myEmail = session?.user?.email?.toLowerCase();
+  const myCategoryKeys = myEmail
+    ? STEP_GROUPS.filter((g) => categoryContacts[g.key]?.some((u) => u.email.toLowerCase() === myEmail)).map(
+        (g) => g.key
+      )
+    : [];
+  const isScopedRep = session?.user?.role === "REP" && myCategoryKeys.length > 0;
+
+  function inMyScope(wf: Workflow) {
+    return (
+      wf.assignedTo?.email?.toLowerCase() === myEmail ||
+      myCategoryKeys.includes(groupKeyForStep(wf.currentStep as StepKey) ?? "")
+    );
+  }
+
+  const visibleWorkflows = isScopedRep ? fetchedWorkflows.filter(inMyScope) : fetchedWorkflows;
+
+  // Tab counts have to reflect the same scoping as the list itself, or a
+  // scoped rep would see e.g. "Active (15)" on a tab that only ever shows 3 rows.
+  const statusCounts = isScopedRep
+    ? allWorkflows.filter(inMyScope).reduce(
+        (counts, wf) => {
+          counts[wf.status as WorkflowStatus] += 1;
+          return counts;
+        },
+        { ACTIVE: 0, ON_HOLD: 0, COMPLETED: 0, CANCELLED: 0 }
+      )
+    : globalStatusCounts;
+
   const workflows = sort
-    ? [...fetchedWorkflows].sort((a, b) => (dir === "desc" ? -1 : 1) * SORTERS[sort](a, b))
-    : fetchedWorkflows;
+    ? [...visibleWorkflows].sort((a, b) => (dir === "desc" ? -1 : 1) * SORTERS[sort](a, b))
+    : visibleWorkflows;
   const total = statusCounts.ACTIVE + statusCounts.ON_HOLD + statusCounts.COMPLETED + statusCounts.CANCELLED;
   const w = dict.workflowsList;
 
@@ -159,7 +199,11 @@ export default async function WorkflowsPage(props: PageProps<"/workflows">) {
             <Link
               key={workflow.id}
               href={`/workflows/${workflow.id}`}
-              className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4 transition hover:border-teal"
+              className={`flex flex-col gap-2 rounded-lg border p-4 transition hover:border-teal ${
+                workflow.assignedTo?.email?.toLowerCase() === myEmail
+                  ? "border-teal bg-teal-soft/40"
+                  : "border-line bg-surface"
+              }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -207,8 +251,13 @@ export default async function WorkflowsPage(props: PageProps<"/workflows">) {
               </tr>
             </thead>
             <tbody>
-              {workflows.map((workflow) => (
-                <tr key={workflow.id} className="border-b border-line last:border-none">
+              {workflows.map((workflow) => {
+                const isMine = workflow.assignedTo?.email?.toLowerCase() === myEmail;
+                return (
+                <tr
+                  key={workflow.id}
+                  className={`border-b border-line last:border-none ${isMine ? "bg-teal-soft/30" : ""}`}
+                >
                   <td className="px-4 py-3">
                     <Link
                       href={`/workflows/${workflow.id}`}
@@ -247,7 +296,8 @@ export default async function WorkflowsPage(props: PageProps<"/workflows">) {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

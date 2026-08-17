@@ -90,7 +90,7 @@ export async function listWorkflows(filter?: {
     orderBy: { updatedAt: "desc" },
     include: {
       lead: { select: { id: true, name: true, phone: true, suburb: true, area: true } },
-      assignedTo: { select: { name: true } },
+      assignedTo: { select: { name: true, email: true } },
       steps: { select: { stepKey: true, status: true } },
     },
   });
@@ -275,6 +275,22 @@ export async function createWorkflow(data: {
   return lead.workflow!;
 }
 
+// When a workflow crosses into a new category, hand it to that category's
+// contact — e.g. a job moving from Lead & Assessment into Sales gets
+// reassigned to whoever is set up as the Sales contact. If a category has
+// several linked accounts, the earliest-linked one is used as the primary.
+async function assignCategoryRep(workflowId: string, leadId: string, categoryKey: string) {
+  const contact = await prisma.categoryContact.findUnique({
+    where: { key: categoryKey },
+    include: { recipients: { orderBy: { createdAt: "asc" }, take: 1, select: { userId: true } } },
+  });
+  const repId = contact?.recipients[0]?.userId;
+  if (!repId) return;
+
+  await prisma.workflowInstance.update({ where: { id: workflowId }, data: { assignedToId: repId } });
+  await prisma.lead.update({ where: { id: leadId }, data: { assignedRepId: repId } });
+}
+
 async function applyCompleteStep(
   workflowId: string,
   stepKey: StepKey,
@@ -304,8 +320,13 @@ async function applyCompleteStep(
 
     const finishedGroup = groupKeyForStep(stepKey);
     const nextGroup = groupKeyForStep(next);
-    if (finishedGroup !== nextGroup) {
-      // Never let a notification failure break the actual step transition.
+    if (finishedGroup !== nextGroup && nextGroup) {
+      // Never let a reassignment or notification failure break the actual step transition.
+      try {
+        await assignCategoryRep(workflowId, workflow.leadId, nextGroup);
+      } catch (err) {
+        console.error(`[assign] Failed to reassign rep for ${workflowId} into ${nextGroup}:`, err);
+      }
       try {
         await notifyCategoryEmail(workflowId, next);
       } catch (err) {
@@ -431,6 +452,17 @@ export async function returnToStep(workflowId: string, stepKey: StepKey, comment
     where: { id: workflowId },
     data: { currentStep: stepKey, status: "ACTIVE", completedAt: null },
   });
+
+  const fromGroup = groupKeyForStep(workflow.currentStep as StepKey);
+  const toGroup = groupKeyForStep(stepKey);
+  if (fromGroup !== toGroup && toGroup) {
+    try {
+      await assignCategoryRep(workflowId, workflow.leadId, toGroup);
+    } catch (err) {
+      console.error(`[assign] Failed to reassign rep for ${workflowId} into ${toGroup}:`, err);
+    }
+  }
+
   await logEvent({
     workflowId,
     type: "STEP_RETURNED",

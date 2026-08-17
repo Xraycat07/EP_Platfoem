@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { getWorkflow, buildActivityLog } from "@/lib/workflow/engine";
 import { getCategoryContacts } from "@/lib/category-contacts";
 import { getDictionary } from "@/lib/i18n/get-locale";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { groupKeyForStep } from "@/lib/workflow/definition";
 import type { WorkflowStatus } from "@/lib/workflow/types";
 import { WorkflowActions } from "./workflow-actions";
 import { WorkflowDetailBody } from "./workflow-detail-body";
@@ -36,12 +38,23 @@ export default async function WorkflowDetailPage(props: PageProps<"/workflows/[i
   const workflow = await getWorkflow(id);
   if (!workflow) notFound();
 
-  const [users, categoryContacts, { dict }] = await Promise.all([
+  const [users, categoryContacts, { dict }, session] = await Promise.all([
     prisma.user.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     getCategoryContacts(),
     getDictionary(),
+    auth(),
   ]);
   const t = dict.workflowDetail;
+
+  const myEmail = session?.user?.email?.toLowerCase();
+  const currentCategoryKey = groupKeyForStep(workflow.currentStep);
+  const myLinkedAccount =
+    myEmail && currentCategoryKey
+      ? categoryContacts[currentCategoryKey]?.find((u) => u.email.toLowerCase() === myEmail)
+      : undefined;
+  const currentCategoryLabel = currentCategoryKey
+    ? dict.stepGroups[currentCategoryKey as keyof typeof dict.stepGroups]
+    : undefined;
 
   const captured = {
     lead: { source: workflow.lead.source, objective: workflow.lead.objective },
@@ -80,6 +93,14 @@ export default async function WorkflowDetailPage(props: PageProps<"/workflows/[i
 
   return (
     <div className="flex flex-col gap-8">
+      {myLinkedAccount && currentCategoryLabel && (
+        <div className="rounded-lg border border-teal bg-teal-soft p-3">
+          <p className="text-sm font-medium text-teal">
+            {t.youAreTheContact.replace("{category}", currentCategoryLabel)}
+            <span className="ml-2 font-mono text-xs">({myLinkedAccount.email})</span>
+          </p>
+        </div>
+      )}
       <div>
         <BackLink href="/workflows" label={t.backToWorkflows} />
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
